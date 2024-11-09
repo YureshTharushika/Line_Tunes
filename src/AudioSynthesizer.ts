@@ -1,5 +1,5 @@
 // Define types for our sound types
-export type DrumSound = 'kick' | 'snare' | 'hihat' | 'clap';
+export type DrumSound = 'clap' | 'cowbell' | 'crash' | 'hihat' |'kick' | 'openhat' | 'perc' | 'snare' | 'tom';
 export type NoteSound = 'noteC' | 'noteD' | 'noteE' | 'noteF';
 export type SoundType = DrumSound | NoteSound;
 
@@ -26,10 +26,15 @@ export class AudioSynthesizer {
 
   private async loadSamples(): Promise<void> {
     const sampleUrls: { [Key in DrumSound]: string } = {
-      kick: '/samples/kick.wav',
-      snare: '/samples/snare.wav',
+      clap: '/samples/clap.wav',
+      cowbell: '/samples/cowbell.wav',
+      crash: '/samples/crash.wav',
       hihat: '/samples/hihat.wav',
-      clap: '/samples/clap.wav'
+      kick: '/samples/kick.wav',
+      openhat: '/samples/openhat.wav',
+      perc: '/samples/perc.wav',
+      snare: '/samples/snare.wav',
+      tom: '/samples/tom.wav'
     };
 
     for (const [name, url] of Object.entries(sampleUrls) as [DrumSound, string][]) {
@@ -113,7 +118,7 @@ export class AudioSynthesizer {
   }
 
   private isDrumSound(type: string): type is DrumSound {
-    return ['kick', 'snare', 'hihat', 'clap'].includes(type);
+    return ['clap' , 'cowbell' , 'crash' , 'hihat' ,'kick' , 'openhat' , 'perc' , 'snare' , 'tom'].includes(type);
   }
 
   private isNoteSound(type: string): type is NoteSound {
