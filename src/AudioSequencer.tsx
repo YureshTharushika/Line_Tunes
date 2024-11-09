@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, Square, Gauge, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Pause, Square, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { AudioSynthesizer, DrumSound } from './AudioSynthesizer';
 import './AudioSequencer.css'
 
@@ -9,9 +9,13 @@ interface GridCell {
   isLit: boolean;
 }
 
-const INTERVAL = 0.125;
+// const INTERVAL = 0.125;
 const MIN_STEPS = 4;
 const MAX_STEPS = 64;
+
+const DEFAULT_BPM = 120;
+const MIN_BPM = 60;
+const MAX_BPM = 400;
 
 const DRUMS_CONFIG = [
   { type: 'kick' as DrumSound, color: '#EF4444' },
@@ -26,7 +30,8 @@ const DRUMS_CONFIG = [
 ];
 
 const AudioSequencer: React.FC = () => {
-  const [steps, setSteps] = useState(32);
+  const [steps, setSteps] = useState(20);
+  const [bpm, setBpm] = useState(DEFAULT_BPM);
   const [grid, setGrid] = useState<GridCell[][]>(() => 
     DRUMS_CONFIG.map(drum => Array(steps).fill(null).map(() => ({
       isActive: false,
@@ -37,9 +42,14 @@ const AudioSequencer: React.FC = () => {
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [speed, setSpeed] = useState(1);
   
   const [synth] = useState(() => new AudioSynthesizer());
+
+  const getBPMInterval = (bpm: number) => {
+    // At 120 BPM, a quarter note is 0.5 seconds
+    // using 8th notes (INTERVAL = 0.125), divide by 2
+    return (60 / bpm) * 1000 / 2;
+  };
 
   const playStepSounds = (stepIndex: number) => {
     grid.forEach((row, rowIndex) => {
@@ -53,7 +63,6 @@ const AudioSequencer: React.FC = () => {
     let interval: NodeJS.Timeout;
     
     if (isPlaying) {
-      // Only play the current step immediately if starting from the beginning
       if (currentStep === 0) {
         playStepSounds(currentStep);
       }
@@ -64,13 +73,13 @@ const AudioSequencer: React.FC = () => {
           playStepSounds(next);
           return next;
         });
-      }, INTERVAL * 1000 / speed);
+      }, getBPMInterval(bpm));
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isPlaying, speed, grid, steps]);
+  }, [isPlaying, bpm, grid, steps]);
 
   useEffect(() => {
     setGrid(prev => prev.map(row => 
@@ -127,6 +136,10 @@ const AudioSequencer: React.FC = () => {
     setGrid(prev => prev.map(row => 
       row.map(cell => ({ ...cell, isLit: false }))
     ));
+  };
+
+  const handleBPMChange = (value: number) => {
+    setBpm(Math.min(Math.max(value, MIN_BPM), MAX_BPM));
   };
 
   return (
@@ -205,17 +218,26 @@ const AudioSequencer: React.FC = () => {
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Gauge className="w-5 h-5 text-purple-400" />
+            <Clock className="w-5 h-5 text-purple-400" />
             <input
               type="range"
-              min="0.1"
-              max="2"
-              step="0.1"
-              value={speed}
-              onChange={(e) => setSpeed(parseFloat(e.target.value))}
+              min={MIN_BPM}
+              max={MAX_BPM}
+              value={bpm}
+              onChange={(e) => handleBPMChange(parseInt(e.target.value))}
               className="w-32 accent-purple-600"
             />
-            <span className="font-['Exo_2'] text-white text-sm">{speed.toFixed(1)} x</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min={MIN_BPM}
+                max={MAX_BPM}
+                value={bpm}
+                onChange={(e) => handleBPMChange(parseInt(e.target.value) || DEFAULT_BPM)}
+                className="w-16 px-2 py-1 text-sm text-white bg-gray-800 rounded border border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              />
+              <span className="text-white text-sm">BPM</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 ml-4">
@@ -226,7 +248,7 @@ const AudioSequencer: React.FC = () => {
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <span className="font-['Exo_2'] text-white text-sm w-16 text-center">{steps} steps</span>
+            <span className="text-white text-sm w-16 text-center">{steps} steps</span>
             <button
               onClick={() => handleStepsChange(Math.min(MAX_STEPS, steps + 4))}
               disabled={steps >= MAX_STEPS}
