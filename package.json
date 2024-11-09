@@ -1,5 +1,5 @@
 {
-  "name": "atomic-tunes",
+  "name": "line-tunes",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,9 +10,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/node": "^22.8.7",
+    "@xzdarcy/react-timeline-editor": "^0.1.9",
+    "framer-motion": "^11.11.11",
+    "gsap": "^3.12.5",
     "lucide-react": "^0.454.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-timelines": "^2.6.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
