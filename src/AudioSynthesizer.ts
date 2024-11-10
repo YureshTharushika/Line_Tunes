@@ -1,15 +1,13 @@
-// Define types for our sound types
-export type DrumSound = 'clap' | 'cowbell' | 'crash' | 'hihat' |'kick' | 'openhat' | 'perc' | 'snare' | 'tom';
+export type DrumSound = 'clap' | 'cowbell' | 'crash' | 'hihat' | 'kick' | 'openhat' | 'perc' | 'snare' | 'tom';
 export type NoteSound = 'noteC' | 'noteD' | 'noteE' | 'noteF';
 export type SoundType = DrumSound | NoteSound;
 
-// Type for note frequencies
 type NoteFrequencies = {
   [Key in NoteSound]: number;
 };
 
 export class AudioSynthesizer {
-  private audioContext: AudioContext;
+  private audioContext: AudioContext | OfflineAudioContext;
   private samples: { [Key in DrumSound]?: AudioBuffer } = {};
   
   private readonly noteFrequencies: NoteFrequencies = {
@@ -19,12 +17,12 @@ export class AudioSynthesizer {
     noteF: 349.23  // F4
   };
 
-  constructor() {
-    this.audioContext = new AudioContext();
+  constructor(context?: AudioContext | OfflineAudioContext) {
+    this.audioContext = context || new AudioContext();
     this.loadSamples();
   }
 
-  private async loadSamples(): Promise<void> {
+  public async loadSamples(): Promise<void> {
     const sampleUrls: { [Key in DrumSound]: string } = {
       clap: '/samples/clap.wav',
       cowbell: '/samples/cowbell.wav',
@@ -69,7 +67,7 @@ export class AudioSynthesizer {
     oscillator.stop(this.audioContext.currentTime + duration);
   }
 
-  private playDrumSample(sampleName: DrumSound): void {
+  private playDrumSample(sampleName: DrumSound, startTime?: number): void {
     const sample = this.samples[sampleName];
     if (!sample) {
       console.warn(`Sample ${sampleName} not loaded`);
@@ -85,10 +83,10 @@ export class AudioSynthesizer {
     source.connect(gainNode);
     gainNode.connect(this.audioContext.destination);
     
-    source.start();
+    source.start(startTime !== undefined ? startTime : this.audioContext.currentTime);
   }
 
-  playSound(type: string): void {
+  playSound(type: string, startTime?: number): void {
     // Type assertion to SoundType after validation
     if (!this.isValidSoundType(type)) {
       console.warn(`Invalid sound type: ${type}`);
@@ -96,13 +94,13 @@ export class AudioSynthesizer {
     }
 
     // Resume audio context if it's suspended (needed for browsers)
-    if (this.audioContext.state === 'suspended') {
+    if (this.audioContext instanceof AudioContext && this.audioContext.state === 'suspended') {
       this.audioContext.resume();
     }
 
     // Handle drum sounds
     if (this.isDrumSound(type)) {
-      this.playDrumSample(type);
+      this.playDrumSample(type, startTime);
       return;
     }
 
@@ -118,7 +116,7 @@ export class AudioSynthesizer {
   }
 
   private isDrumSound(type: string): type is DrumSound {
-    return ['clap' , 'cowbell' , 'crash' , 'hihat' ,'kick' , 'openhat' , 'perc' , 'snare' , 'tom'].includes(type);
+    return ['clap', 'cowbell', 'crash', 'hihat', 'kick', 'openhat', 'perc', 'snare', 'tom'].includes(type);
   }
 
   private isNoteSound(type: string): type is NoteSound {
@@ -127,6 +125,8 @@ export class AudioSynthesizer {
 
   // Clean up method
   dispose(): void {
-    this.audioContext.close();
+    if (this.audioContext instanceof AudioContext) {
+      this.audioContext.close();
+    }
   }
 }

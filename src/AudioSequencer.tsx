@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, Square, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { Play, Pause, Square, ChevronLeft, ChevronRight, Clock, Trash2, Download } from 'lucide-react';
 import { AudioSynthesizer, DrumSound } from './AudioSynthesizer';
 import './AudioSequencer.css'
+import { AudioExporter } from './AudioExporter';
 
 interface GridCell {
   isActive: boolean;
@@ -9,11 +10,10 @@ interface GridCell {
   isLit: boolean;
 }
 
-// const INTERVAL = 0.125;
 const MIN_STEPS = 4;
 const MAX_STEPS = 64;
 
-const DEFAULT_BPM = 120;
+const DEFAULT_BPM = 220;
 const MIN_BPM = 60;
 const MAX_BPM = 400;
 
@@ -45,6 +45,26 @@ const AudioSequencer: React.FC = () => {
   
   const [synth] = useState(() => new AudioSynthesizer());
 
+
+  const handleExport = async () => {
+    try {
+      await AudioExporter.exportToWav(grid, bpm, steps, DRUMS_CONFIG);
+    } catch (err: unknown) {
+      let errorMessage = 'Failed to export audio';
+      
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (err && typeof err === 'object' && 'message' in err) {
+        errorMessage = String(err.message);
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      }
+      
+      alert(errorMessage);
+    }
+  };
+
+
   const getBPMInterval = (bpm: number) => {
     // At 120 BPM, a quarter note is 0.5 seconds
     // using 8th notes (INTERVAL = 0.125), divide by 2
@@ -63,9 +83,7 @@ const AudioSequencer: React.FC = () => {
     let interval: NodeJS.Timeout;
     
     if (isPlaying) {
-      if (currentStep === 0) {
-        playStepSounds(currentStep);
-      }
+      playStepSounds(currentStep);
       
       interval = setInterval(() => {
         setCurrentStep(prev => {
@@ -75,20 +93,20 @@ const AudioSequencer: React.FC = () => {
         });
       }, getBPMInterval(bpm));
     }
-
+  
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isPlaying, bpm, grid, steps]);
+  }, [isPlaying, bpm, steps, grid]);
 
   useEffect(() => {
     setGrid(prev => prev.map(row => 
       row.map((cell, index) => ({
         ...cell,
-        isLit: index === currentStep && cell.isActive
+        isLit: isPlaying && index === currentStep && cell.isActive
       }))
     ));
-  }, [currentStep]);
+  }, [currentStep, isPlaying]);
 
   const handleStepsChange = (newSteps: number) => {
     setIsPlaying(false);
@@ -121,21 +139,34 @@ const AudioSequencer: React.FC = () => {
   };
 
   const startPlayback = () => {
-    // Only reset to start if at the end or stopped
     if (currentStep === 0 || currentStep === steps - 1) {
       setCurrentStep(0);
     }
     setIsPlaying(true);
   };
 
-  const pausePlayback = () => setIsPlaying(false);
+  const pausePlayback = () => {
+    setIsPlaying(false);
+  };
 
   const stopPlayback = () => {
     setIsPlaying(false);
-    setCurrentStep(0);
     setGrid(prev => prev.map(row => 
-      row.map(cell => ({ ...cell, isLit: false }))
+      row.map(cell => ({
+        ...cell,
+        isLit: false
+      }))
     ));
+    setCurrentStep(0);
+  };
+
+  const clearPattern = () => {
+    stopPlayback();
+    setGrid(DRUMS_CONFIG.map(drum => Array(steps).fill(null).map(() => ({
+      isActive: false,
+      type: drum.type,
+      isLit: false
+    }))));
   };
 
   const handleBPMChange = (value: number) => {
@@ -174,15 +205,23 @@ const AudioSequencer: React.FC = () => {
                     key={colIndex}
                     onClick={() => handleCellClick(rowIndex, colIndex)}
                     className={`w-8 h-8 rounded transition-all duration-100
-                      ${colIndex % 4 === 0 ? 'border-l-2 border-purple-500/30' : ''}
                       ${!cell.isActive ? 'bg-gray-800 hover:bg-gray-700' : ''}`}
                     style={{
-                      backgroundColor: cell.isActive ? DRUMS_CONFIG[rowIndex].color : undefined,
-                      boxShadow: cell.isLit 
-                        ? '0 0 15px rgba(56, 189, 248, 0.8), inset 0 0 5px rgba(56, 189, 248, 0.5)' 
+                      backgroundColor: cell.isLit 
+                        ? 'rgba(17, 24, 39, 0.8)'
                         : cell.isActive 
-                          ? `0 0 5px ${DRUMS_CONFIG[rowIndex].color}` 
-                          : 'none'
+                        ? DRUMS_CONFIG[rowIndex].color 
+                        : undefined,
+                      boxShadow: cell.isLit 
+                        ? `0 0 15px rgba(56, 189, 248, 0.8),
+                          inset 0 0 15px rgba(56, 189, 248, 0.8),
+                          0 0 5px rgba(56, 189, 248, 0.5)` 
+                        : cell.isActive 
+                        ? `0 0 5px ${DRUMS_CONFIG[rowIndex].color}` 
+                        : 'none',
+                      borderLeft: (!cell.isActive && !cell.isLit && colIndex % 4 === 0) 
+                        ? '3px solid rgba(139, 92, 246, 0.5)' 
+                        : 'none'
                     }}
                   />
                 ))}
@@ -194,10 +233,11 @@ const AudioSequencer: React.FC = () => {
 
       <div className="flex flex-col items-center gap-4">
         <div className="flex gap-4">
-          <button
+        <button
             onClick={startPlayback}
             disabled={isPlaying}
             className="p-2 text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
+            title="Start"
           >
             <Play className="w-6 h-6" />
           </button>
@@ -205,14 +245,30 @@ const AudioSequencer: React.FC = () => {
             onClick={pausePlayback}
             disabled={!isPlaying}
             className="p-2 text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
+            title="Pause"
           >
             <Pause className="w-6 h-6" />
           </button>
           <button
             onClick={stopPlayback}
             className="p-2 text-white bg-purple-600 rounded hover:bg-purple-700"
+            title="Stop"
           >
             <Square className="w-6 h-6" />
+          </button>
+          <button
+            onClick={clearPattern}
+            className="p-2 text-white bg-purple-600 rounded hover:bg-purple-700"
+            title="Clear pattern"
+          >
+            <Trash2 className="w-6 h-6" />
+          </button>
+          <button
+            onClick={handleExport}
+            className="p-2 text-white bg-purple-600 rounded hover:bg-purple-700"
+            title="Export as WAV"
+          >
+            <Download className="w-6 h-6" />
           </button>
         </div>
 
@@ -245,6 +301,7 @@ const AudioSequencer: React.FC = () => {
               onClick={() => handleStepsChange(Math.max(MIN_STEPS, steps - 4))}
               disabled={steps <= MIN_STEPS}
               className="p-1 text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
+              title="Decrease steps by 4"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -253,6 +310,7 @@ const AudioSequencer: React.FC = () => {
               onClick={() => handleStepsChange(Math.min(MAX_STEPS, steps + 4))}
               disabled={steps >= MAX_STEPS}
               className="p-1 text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50"
+              title="Increase steps by 4"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
